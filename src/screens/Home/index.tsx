@@ -1,36 +1,99 @@
-import React from 'react';
-import { StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StatusBar, StyleSheet, BackHandler } from 'react-native';
 import { RFValue } from 'react-native-responsive-fontsize';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from 'styled-components';
+import { Ionicons } from '@expo/vector-icons'
+
+import { RectButton, PanGestureHandler } from 'react-native-gesture-handler';
+
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  useAnimatedGestureHandler,
+  withSpring
+} from 'react-native-reanimated';
 
 import Logo from '../../assets/logo.svg';
+import api from '../../service/api';
+
+import CarDTO from '../../dtos/CarDTO';
+
+import LoadAnimation from '../../components/LoadAnimation';
+import Car from '../../components/Car';
 
 import { 
   Container,
   Header,
   TotalCars,
   HeaderContent,
-  CarList
+  CarList,
 } from './styles';
 
-import Car from '../../components/Car';
+const ButtonAnimated = Animated.createAnimatedComponent(RectButton);
 
 const Home: React.FC = () => {
-  const navigation = useNavigation();
+  const [cars, setCars] = useState<CarDTO[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const carData = {
-    brand: 'AUDI',
-    name: 'RS 5 Coupé',
-    rent: {
-      period: 'AO DIA',
-      price: 100,
-    },
-    thumbnail:'https://png.monster/wp-content/uploads/2020/11/2018-audi-rs5-4wd-coupe-angular-front-5039562b.png'
+  const positionY = useSharedValue(0);
+  const positionX = useSharedValue(0);
+
+  const navigation = useNavigation();
+  const theme = useTheme();
+
+  useEffect(() => { 
+    async function fetchCars() { 
+      try {
+        setLoading(true);
+        const { data } = await api.get('/cars');
+
+        setCars(data);
+      } catch(err) { 
+        console.log(err)
+      } finally { 
+        setLoading(false)
+      }
+     };
+
+    fetchCars()
+  }, []);
+
+  useEffect(() => {
+    BackHandler.addEventListener('hardwareBackPress', () => true);
+  }, [])
+
+  function handleCarDetails(car:CarDTO) { 
+    navigation.navigate("CarDetails", { car });
+  }
+
+  function handleOpenMyCars() { 
+    navigation.navigate("MyCars");
   };
 
-  function handleCarDetails() { 
-    navigation.navigate("CarDetails");
-  }
+  const myCarsButtonStyle = useAnimatedStyle(() => { 
+    return { 
+      transform: [
+        { translateX: positionX.value },
+        { translateY: positionY.value }
+      ]
+    }
+  });
+
+  const onGestureEvent = useAnimatedGestureHandler({
+    onStart(_, ctx: any) {
+      ctx.positionX = positionX.value;
+      ctx.positionY = positionY.value;
+    },
+    onActive(event, ctx: any) {
+      positionX.value = ctx.positionX + event.translationX;
+      positionY.value = ctx.positionY + event.translationY;
+    },
+    onEnd() { 
+      positionX.value = withSpring(0);
+      positionY.value = withSpring(0);
+    }
+  });
 
   return (
     <Container>
@@ -45,25 +108,63 @@ const Home: React.FC = () => {
             width={RFValue(108)}
             height={RFValue(12)}
           />
-          <TotalCars>
-            Total de 12 carros
-          </TotalCars>
+          {
+            !loading && 
+            <TotalCars>
+              Total de {cars.length} carros
+            </TotalCars>
+          }
+          
         </HeaderContent>
       </Header>
+      {loading ? <LoadAnimation/> : 
+        <CarList
+          data={cars}
+          keyExtractor={item => String(item.id)}
+          renderItem={({ item }) => (
+            <Car
+              data={item}
+              onPress={() => handleCarDetails(item)}
+            />
+          )}
+        />
+      }
 
-      <CarList
-        data={[1,2,3,4,5,6]}
-        keyExtractor={item => String(item)}
-        renderItem={({ item }) => (
-          <Car
-            data={carData}
-            onPress={handleCarDetails}
-          />
-        )}
-      />
-      
+      <PanGestureHandler onGestureEvent={onGestureEvent}>
+        <Animated.View
+          style={[
+            myCarsButtonStyle,
+            {
+              position: 'absolute',
+              bottom: 13,
+              right: 22
+            }
+          ]}  
+        >
+          <ButtonAnimated 
+            onPress={handleOpenMyCars}
+            style={[styles.button, { backgroundColor: theme.colors.main }]}
+          >
+            <Ionicons
+              name="ios-car-sport"
+              size={32}
+              color={theme.colors.shape}
+            />
+          </ButtonAnimated>
+        </Animated.View>
+      </PanGestureHandler>
     </Container>
   )
-}
+};
+
+const styles = StyleSheet.create({
+  button: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
+})
 
 export default Home;

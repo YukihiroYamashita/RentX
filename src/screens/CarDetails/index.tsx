@@ -1,24 +1,28 @@
 import React from 'react';
+import { StatusBar, StyleSheet } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/core';
 
-import { useNavigation } from '@react-navigation/core';
+import Animated, { 
+  Extrapolate,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue
+} from 'react-native-reanimated';
 
 import BackButton from '../../components/BackButton';
 import ImageSlider from '../../components/ImageSlider';
 import Acessory from '../../components/Acessory';
 import Button from '../../components/Button';
 
-import SpeedSvg from '../../assets/speed.svg'
-import AccelerationSvg from '../../assets/acceleration.svg'
-import ForceSvg from '../../assets/force.svg'
-import GasolineSvg from '../../assets/gasoline.svg'
-import ExchangeSvg from '../../assets/exchange.svg'
-import PeopleSvg from '../../assets/people.svg'
+import { getAccessoryIcon } from '../../utils/getAccessoryIcon';
+
+import CarDTO from '../../dtos/CarDTO';
 
 import { 
   Container,
   Header,
   CarImages,
-  Content,
   Details,
   Description,
   Brand,
@@ -30,74 +34,120 @@ import {
   Acessories,
   Footer
 } from './styles';
+import { getStatusBarHeight } from 'react-native-iphone-x-helper';
+import { useTheme } from 'styled-components';
+
+interface Params { 
+  car: CarDTO
+}
 
 const CarDetails: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+  const theme = useTheme();
+  
+  const { car } = route.params as Params;
+
+  const scrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler(event => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  const headerStyleAnimation = useAnimatedStyle(() => {
+    return { 
+      height: interpolate(
+        scrollY.value,
+        [0, 200],
+        [200, 70],
+        Extrapolate.CLAMP
+      )
+    }
+  });
+
+  const sliderCarsStyleAnimation = useAnimatedStyle(() => {
+    return { 
+      opacity: interpolate(
+        scrollY.value,
+        [0, 150],
+        [1, 0],
+        Extrapolate.CLAMP
+      )
+    }
+  })
 
   function handleConfirmRental() { 
-    navigation.navigate("Schedules");
-  }
+    navigation.navigate("Schedules", { car });
+  };
+
+  function handleBack() { 
+    navigation.goBack();
+  };
 
   return (
     <Container>
-      <Header>
-        <BackButton
-          onPress={() => {}}
-        />
-      </Header>
-      
-      <CarImages>
-        <ImageSlider 
-          imagesUrl={['https://png.monster/wp-content/uploads/2020/11/2018-audi-rs5-4wd-coupe-angular-front-5039562b.png']}
-        />
-      </CarImages>
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
+      <Animated.View style={[
+        headerStyleAnimation,
+        styles.header,
+        { backgroundColor: theme.colors.background_secondary }
+      ]}>
+        <Header>
+          <BackButton onPress={handleBack}/>
+        </Header>
 
-      <Content>
+        <Animated.View style={sliderCarsStyleAnimation}>
+          <CarImages>
+            <ImageSlider 
+              imagesUrl={car.photos}
+            />
+          </CarImages>
+        </Animated.View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: 24,
+          paddingTop: getStatusBarHeight() + 160
+        }}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
         <Details>
           <Description>
-            <Brand>LAMBORGHINI</Brand>
-            <Name>Huracan</Name>
+            <Brand>{car.brand}</Brand>
+            <Name>{car.name}</Name>
           </Description>
           
           <Rent>
-            <Period>AO DIA</Period>
-            <Price>R$680</Price>
+            <Period>{car.rent.period}</Period>
+            <Price>R$ {car.rent.price}</Price>
           </Rent>
         </Details>
 
         <Acessories>
-          <Acessory 
-            name="380Km/h"
-            icon={SpeedSvg}
-          />
-          <Acessory 
-            name="3.2s"
-            icon={AccelerationSvg}
-          />
-          <Acessory 
-            name="800 HP"
-            icon={ForceSvg}
-          />
-          <Acessory 
-            name="Gasolina"
-            icon={GasolineSvg}
-          />
-          <Acessory 
-            name="Auto"
-            icon={ExchangeSvg}
-          />
-          <Acessory 
-            name="2 pessoas"
-            icon={PeopleSvg}
-          />
+          {car.accessories.map(accessory => (
+            <Acessory 
+              key={accessory.type}
+              name={accessory.name}
+              icon={getAccessoryIcon(accessory.type)}
+            />
+          ))}
         </Acessories>
 
         <About>
-          The Lamborghini Huracán is the perfect fusion of technology and design.
-          With its crisp, streamlined lines, designed to cut through the air and 
-          tame the road 
+          {car.about}
+          {car.about}
+          {car.about}
+          {car.about}
+          {car.about}
         </About>
-      </Content>
+      </Animated.ScrollView>
 
       <Footer>
         <Button
@@ -107,6 +157,14 @@ const CarDetails: React.FC = () => {
       </Footer>
     </Container>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  header: {
+    position: 'absolute',
+    overflow: 'hidden',
+    zIndex: 1
+  }
+})
 
 export default CarDetails;
